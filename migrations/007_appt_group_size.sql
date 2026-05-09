@@ -1,0 +1,1 @@
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS group_size int NOT NULL DEFAULT 1;
