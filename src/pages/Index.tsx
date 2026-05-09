@@ -26,35 +26,6 @@ import { ToastProvider, toast } from '../components/ui/Toast';
 import { clearSupabaseConfig, getStoredCreds, getSupabase, hasEnvCreds, initSupabase, testSupabaseConnection, tryInitAndPing } from '../lib/supabaseClient';
 import { useConfirmAlert } from '../hooks/useConfirmAlert';
 
-// AES-GCM "remember password" — encrypted with a per-device key so it's not
-// plain-text in localStorage. Key and ciphertext are on the same device,
-// same as a browser's built-in password manager on a trusted device.
-const _rpB64 = {
-  enc: (b: Uint8Array) => btoa(String.fromCharCode(...Array.from(b))),
-  dec: (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0)),
-};
-async function _getRpKey(): Promise<CryptoKey> {
-  const s = localStorage.getItem('np_rp_key');
-  if (s) return crypto.subtle.importKey('raw', _rpB64.dec(s), 'AES-GCM', false, ['encrypt', 'decrypt']);
-  const k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-  localStorage.setItem('np_rp_key', _rpB64.enc(new Uint8Array(await crypto.subtle.exportKey('raw', k))));
-  return k;
-}
-async function _encryptPwd(pwd: string): Promise<string> {
-  const k = await _getRpKey();
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k, new TextEncoder().encode(pwd));
-  return _rpB64.enc(iv) + '.' + _rpB64.enc(new Uint8Array(ct));
-}
-async function _decryptPwd(stored: string): Promise<string | null> {
-  try {
-    const [ivB64, ctB64] = stored.split('.');
-    const k = await _getRpKey();
-    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: _rpB64.dec(ivB64) }, k, _rpB64.dec(ctB64));
-    return new TextDecoder().decode(pt);
-  } catch { return null; }
-}
-
 export const Index: React.FC = () => {
   const { confirm } = useConfirmAlert();
   const [currentScreen, setCurrentScreen] = useState('dash');
@@ -70,7 +41,6 @@ export const Index: React.FC = () => {
   const [showSetup, setShowSetup] = useState(false);
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [setupUrl, setSetupUrl] = useState('');
   const [setupKey, setSetupKey] = useState('');
@@ -121,13 +91,13 @@ export const Index: React.FC = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('np_remember_user');
-    if (savedUser) {
-      setLoginUsername(savedUser);
-      setRememberMe(true);
-      const savedPwd = localStorage.getItem('np_rp_pwd');
-      if (savedPwd) _decryptPwd(savedPwd).then(pwd => { if (pwd) setLoginPassword(pwd); });
-    }
+    // One-time cleanup of legacy "remember me" data; the feature has been
+    // removed so leftover values from older builds shouldn't auto-populate
+    // the login form on this device.
+    localStorage.removeItem('np_remember_user');
+    localStorage.removeItem('np_rp_pwd');
+    localStorage.removeItem('np_rp_key');
+
     // Initial boot check
     if (typeof window !== 'undefined') {
       const { url, key, source } = getStoredCreds();
@@ -222,13 +192,6 @@ export const Index: React.FC = () => {
       loginPassword,
       () => {
         toast('Đăng nhập thành công', 'success');
-        if (rememberMe) {
-          localStorage.setItem('np_remember_user', loginUsername);
-          _encryptPwd(loginPassword).then(enc => localStorage.setItem('np_rp_pwd', enc));
-        } else {
-          localStorage.removeItem('np_remember_user');
-          localStorage.removeItem('np_rp_pwd');
-        }
       },
       (msg) => {
         if (msg === 'MUST_SET_PASSWORD') {
@@ -420,15 +383,6 @@ export const Index: React.FC = () => {
               autoComplete="current-password"
               style={{ background: 'rgba(255,255,255,0.7)' }}
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.9)', fontSize: '13px' }}>
-              <input 
-                type="checkbox" 
-                id="rememberMe" 
-                checked={rememberMe} 
-                onChange={e => setRememberMe(e.target.checked)} 
-              />
-              <label htmlFor="rememberMe">Ghi nhớ tài khoản</label>
-            </div>
             <button type="submit" className="btn brand full" style={{ marginTop: '8px' }}>
               Đăng nhập
             </button>
