@@ -5,7 +5,8 @@ import { toast } from '../ui/Toast';
 export const CustomerModal: React.FC<{
   onClose: () => void;
   editId?: string;
-}> = ({ onClose, editId }) => {
+  open?: boolean;
+}> = ({ onClose, editId, open = true }) => {
   const { cache, dbInsert, dbUpdate } = useCache();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -49,7 +50,7 @@ export const CustomerModal: React.FC<{
   };
 
   return (
-    <div className="moverlay open" onClick={(e) => { if ((e.target as HTMLElement).classList.contains('moverlay')) onClose(); }}>
+    <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).classList.contains('moverlay')) onClose(); }}>
       <div className="modal">
         <div className="mhandle"></div>
         <div className="mhdr">

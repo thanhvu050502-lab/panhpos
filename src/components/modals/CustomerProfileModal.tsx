@@ -5,9 +5,10 @@ import { formatCurrency, formatDateTime, fmtDate } from '../../lib/utils';
 interface CustomerProfileModalProps {
   onClose: () => void;
   customerId?: string;
+  open?: boolean;
 }
 
-export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ onClose, customerId }) => {
+export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ onClose, customerId, open = true }) => {
   const { cache } = useCache();
   const customer = (cache.customers || []).find((c: any) => c.id === customerId);
 
@@ -44,7 +45,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ onCl
 
   if (!customer) {
     return (
-      <div className="moverlay open" onClick={(e) => { if ((e.target as HTMLElement).classList.contains('moverlay')) onClose(); }}>
+      <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).classList.contains('moverlay')) onClose(); }}>
         <div className="modal">
           <div className="mhandle"></div>
           <div className="mhdr">
@@ -62,7 +63,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ onCl
   const groupName = cache.groups?.find((g: any) => g.id === customer.group_id)?.name || 'Khách vãng lai';
 
   return (
-    <div className="moverlay open" onClick={(e) => { if ((e.target as HTMLElement).classList.contains('moverlay')) onClose(); }}>
+    <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).classList.contains('moverlay')) onClose(); }}>
       <div className="modal" style={{ maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }}>
         <div className="mhandle"></div>
         <div className="mhdr">

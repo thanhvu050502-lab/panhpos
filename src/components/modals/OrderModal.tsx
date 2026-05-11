@@ -10,9 +10,10 @@ import { logAudit } from '../../hooks/useAuditLog';
 interface OrderModalProps {
   onClose: () => void;
   apptId?: string;
+  open?: boolean;
 }
 
-export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId }) => {
+export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId, open = true }) => {
   const { cache, dbUpdate, createOrderAtomic } = useCache();
   const { t } = useLang();
   const { getMembers, session } = useAuth();
@@ -32,6 +33,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId }) => {
 
   const [catFilter, setCatFilter] = useState('');
   const [savingPending, setSavingPending] = useState(false);
+  const [removing, setRemoving] = useState<Set<any>>(new Set());
+  const removeTimers = React.useRef<Map<any, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => () => {
+    removeTimers.current.forEach(clearTimeout);
+    removeTimers.current.clear();
+  }, []);
 
   // Extracted computed variables
   const groupOrderEnabled = cache.settings?.group_order_enabled || false;
@@ -224,7 +232,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId }) => {
   const khacInCart = cart.some(i => i.catalog_id === '__khac__');
 
   return (
-    <div className="moverlay open" onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
+    <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
       <div className="modal" style={{ maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }}>
         <div className="mhandle"></div>
         <div className="mhdr">
@@ -351,7 +359,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId }) => {
               <label className="flbl" style={{ marginBottom: '6px' }}>Giỏ hàng</label>
               <div className="card">
                 {cart.map((item, i) => (
-                  <div key={i} className="cart-item" style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--bdr2)' }}>
+                  <div key={i} className={`cart-item${removing.has(item) ? ' removing' : ''}`} style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--bdr2)' }}>
                     <div style={{ flex: 1, fontSize: '14px', fontWeight: 500 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         {item.is_combo && <span style={{ fontSize: '11px' }}>📦</span>}
@@ -375,7 +383,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId }) => {
                         setCart(newCart);
                       }}
                     />
-                    <button style={{ marginLeft: '10px', width: '28px', height: '28px', borderRadius: '50%', background: 'var(--red-bg)', color: 'var(--red)', border: 'none' }} onClick={() => setCart(cart.filter((_, idx) => idx !== i))}>×</button>
+                    <button style={{ marginLeft: '10px', width: '28px', height: '28px', borderRadius: '50%', background: 'var(--red-bg)', color: 'var(--red)', border: 'none' }} onClick={() => {
+                      if (removing.has(item)) return;
+                      setRemoving(prev => { const next = new Set(prev); next.add(item); return next; });
+                      const tid = setTimeout(() => {
+                        setCart(prev => prev.filter(x => x !== item));
+                        setRemoving(prev => { const next = new Set(prev); next.delete(item); return next; });
+                        removeTimers.current.delete(item);
+                      }, 220);
+                      removeTimers.current.set(item, tid);
+                    }}>×</button>
                   </div>
                 ))}
               </div>
