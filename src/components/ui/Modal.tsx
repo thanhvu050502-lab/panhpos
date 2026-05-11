@@ -11,21 +11,32 @@ export interface ModalProps {
   className?: string; // used for custom max-height etc on .modal
 }
 
-export const Modal: React.FC<ModalProps> = ({ 
-  id, 
-  isOpen, 
-  onClose, 
-  title, 
-  children, 
-  footer, 
-  className 
+export const Modal: React.FC<ModalProps> = ({
+  id,
+  isOpen,
+  onClose,
+  title,
+  children,
+  footer,
+  className
 }) => {
-  if (!isOpen) return null;
+  const [shouldRender, setShouldRender] = React.useState(isOpen);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      return;
+    }
+    const t = setTimeout(() => setShouldRender(false), 300);
+    return () => clearTimeout(t);
+  }, [isOpen]);
+
+  if (!shouldRender) return null;
 
   return (
-    <div 
-      className={cn("moverlay", isOpen && "open")} 
-      id={id} 
+    <div
+      className={cn("moverlay", isOpen && "open")}
+      id={id}
       onClick={(e) => {
         // Close on overlay click
         if (e.target === e.currentTarget) onClose();

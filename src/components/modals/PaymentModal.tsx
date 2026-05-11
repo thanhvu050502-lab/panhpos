@@ -33,11 +33,12 @@ interface PaymentModalProps {
   onClose: () => void;
   onSuccess: () => void;
   orderState: any;
+  open?: boolean;
 }
 
 const PM_ICONS: Record<string, string> = { cash: '💵', bank: '🏦', momo: '📱', zalopay: '🔵', custom: '💳' };
 
-export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, orderState }) => {
+export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, orderState, open = true }) => {
   const { cache, dbInsert, dbUpdate, fetchAll, createOrderAtomic } = useCache();
   const { t } = useLang();
   const [selectedMethodId, setSelectedMethodId] = useState('');
@@ -212,7 +213,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, 
   };
 
   return (
-    <div className="moverlay open" onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
+    <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
       <div className="modal" style={{ maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }}>
         <div className="mhandle"></div>
         <div className="mhdr">

@@ -39,9 +39,10 @@ const DAY_SHORTCUTS = [
 interface ApptModalProps {
   onClose: () => void;
   apptId?: string;
+  open?: boolean;
 }
 
-export const ApptModal: React.FC<ApptModalProps> = ({ onClose, apptId }) => {
+export const ApptModal: React.FC<ApptModalProps> = ({ onClose, apptId, open = true }) => {
   const { cache, dbInsert, dbUpdate } = useCache();
   const { getMembers, session } = useAuth();
   const members = getMembers();
@@ -227,7 +228,7 @@ export const ApptModal: React.FC<ApptModalProps> = ({ onClose, apptId }) => {
   const hasKhac = services.includes('__khac__');
 
   return (
-    <div className="moverlay open" onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
+    <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
       <div ref={modalRef} className="modal" style={{ maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }} onPaste={handlePaste}>
         <div className="mhandle"></div>
         <div className="mhdr">

@@ -9,9 +9,10 @@ import { useAuth } from '../../hooks/useAuth';
 interface OrderDetailModalProps {
   onClose: () => void;
   orderId?: string;
+  open?: boolean;
 }
 
-export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, orderId }) => {
+export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, orderId, open = true }) => {
   const { cache, dbUpdate } = useCache();
   const { session } = useAuth();
   const [cancelReason, setCancelReason] = useState('');
@@ -22,7 +23,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, ord
 
   if (!order) {
     return (
-      <div className="moverlay open" onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
+      <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
         <div className="modal">
           <div className="mhandle"></div>
           <div className="mhdr">
@@ -112,7 +113,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, ord
   }
 
   return (
-    <div className="moverlay open" onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
+    <div className={`moverlay${open ? ' open' : ''}`} onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) onClose(); }}>
       <div className="modal" style={{ maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }}>
         <div className="mhandle"></div>
         <div className="mhdr">
