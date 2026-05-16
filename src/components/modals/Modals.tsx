@@ -5,16 +5,29 @@ import { PaymentModal } from './PaymentModal';
 import { OrderDetailModal } from './OrderDetailModal';
 import { ApptModal } from './ApptModal';
 import { CustomerProfileModal } from './CustomerProfileModal';
+import type { OrderState } from '../../types/order';
 
 declare global {
   interface Window {
     openModal?: (id: string, entityId?: string) => void;
     closeModal?: (id?: string) => void;
-    _orderState?: any;
+    _orderState?: OrderState;
   }
 }
 
 const MODAL_EXIT_MS = 300;
+
+const EMPTY_ORDER_STATE: OrderState = {
+  customer: null,
+  cart: [],
+  promoId: '',
+  discount: 0,
+  apptId: null,
+  qty: 1,
+  notes: '',
+  total: 0,
+  subtotal: 0,
+};
 
 export const Modals: React.FC = () => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -42,6 +55,21 @@ export const Modals: React.FC = () => {
       closeTimer.current = null;
     }, MODAL_EXIT_MS);
   }, []);
+
+  // Close the active modal on Escape — basic keyboard accessibility.
+  // Skip while a confirm dialog is open (z-index 600 > moverlay z-index 500)
+  // so Escape dismisses the topmost dialog only.
+  useEffect(() => {
+    if (!activeModal || isClosing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const hasConfirmOpen = document.querySelector('[role="alertdialog"]');
+      if (hasConfirmOpen) return;
+      startClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeModal, isClosing, startClose]);
 
   useEffect(() => {
     window.openModal = (id: string, entityId?: string) => {
@@ -79,7 +107,7 @@ export const Modals: React.FC = () => {
       <PaymentModal
         open={open}
         onClose={startClose}
-        orderState={window._orderState || {}}
+        orderState={window._orderState ?? EMPTY_ORDER_STATE}
         onSuccess={() => {
           // Payment success path: snap-close without exit animation so the success toast lands cleanly.
           performUnmount();

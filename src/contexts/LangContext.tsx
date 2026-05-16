@@ -21,7 +21,7 @@ export const LangProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const setLang = useCallback((l: Lang) => {
-    try { localStorage.setItem('np_language', l); } catch {}
+    try { localStorage.setItem('np_language', l); } catch { /* storage disabled */ }
     setLangState(l);
   }, []);
 

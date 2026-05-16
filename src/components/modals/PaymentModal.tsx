@@ -5,6 +5,7 @@ import { uid, nextOrderCode, parseMoney } from '../../lib/utils';
 import { getSupabase } from '../../lib/supabaseClient';
 import { toast } from '../ui/Toast';
 import { logAudit } from '../../hooks/useAuditLog';
+import type { OrderState } from '../../types/order';
 
 /**
  * Stable IDs across retries.
@@ -32,7 +33,7 @@ interface TxnIds {
 interface PaymentModalProps {
   onClose: () => void;
   onSuccess: () => void;
-  orderState: any;
+  orderState: OrderState;
   open?: boolean;
 }
 
@@ -323,7 +324,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, 
         </div>
         <div className="mfoot">
           <button className="btn outline" style={{ flex: 1 }} onClick={onClose} disabled={isLoading}>{t('Quay lại')}</button>
-          <button className="btn brand" style={{ flex: 2 }} onClick={confirmPayment} disabled={isLoading}>{isLoading ? '...' : `✓ ${t('Xác nhận')}`}</button>
+          <button className="btn brand" style={{ flex: 2 }} onClick={confirmPayment} disabled={isLoading} aria-busy={isLoading}>{isLoading ? '...' : `✓ ${t('Xác nhận')}`}</button>
         </div>
       </div>
     </div>
