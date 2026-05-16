@@ -6,6 +6,7 @@ import { toast } from '../ui/Toast';
 import { uid, nextOrderCode, parseMoney } from '../../lib/utils';
 import { getSupabase } from '../../lib/supabaseClient';
 import { logAudit } from '../../hooks/useAuditLog';
+import type { OrderState } from '../../types/order';
 
 interface OrderModalProps {
   onClose: () => void;
@@ -14,7 +15,7 @@ interface OrderModalProps {
 }
 
 export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId, open = true }) => {
-  const { cache, dbUpdate, createOrderAtomic } = useCache();
+  const { cache, createOrderAtomic } = useCache();
   const { t } = useLang();
   const { getMembers, session } = useAuth();
   const members = getMembers();
@@ -148,18 +149,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId, open = 
     }
     
     // Save state to window and open Payment Modal
-    (window as any)._orderState = {
+    const next: OrderState = {
       customer: selectedCust,
       cart,
       promoId,
       discount,
-      apptId,
+      apptId: apptId ?? null,
       qty: groupQty,
       notes,
       total,
       subtotal,
       staffName,
     };
+    window._orderState = next;
     onClose();
     (window as any).openModal('payModal');
   };
@@ -449,7 +451,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId, open = 
         <div className="mfoot" style={{ flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
             <button className="btn outline" style={{ flex: 1 }} onClick={onClose}>{t('Đóng')}</button>
-            <button className="btn success" style={{ flex: 1 }} onClick={saveOrderPending} disabled={savingPending}>{savingPending ? '...' : `💾 ${t('Lưu đơn chờ')}`}</button>
+            <button className="btn success" style={{ flex: 1 }} onClick={saveOrderPending} disabled={savingPending} aria-busy={savingPending}>{savingPending ? '...' : `💾 ${t('Lưu đơn chờ')}`}</button>
             <button className="btn brand" style={{ flex: 2 }} onClick={proceedToPay}>{t('Thanh toán →')}</button>
           </div>
         </div>

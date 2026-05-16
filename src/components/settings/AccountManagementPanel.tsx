@@ -7,7 +7,7 @@ interface AccountManagementPanelProps {
   onClose: () => void;
 }
 
-export const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({ onClose }) => {
+export const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({ onClose: _onClose }) => {
   const { confirm } = useConfirmAlert();
   const { session, getMembers, addMember, removeMemberByUsername } = useAuth();
   const members = getMembers().filter(m => !m.isMaster);

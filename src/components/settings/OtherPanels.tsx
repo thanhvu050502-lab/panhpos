@@ -819,7 +819,7 @@ export const ReminderPanel: React.FC = () => {
           new Notification(`Lịch hẹn sắp tới: ${a.customer_name}`, {
             body: `${dt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} – ${(a.services || []).join(', ') || ''}`,
           });
-        } catch {}
+        } catch { /* notification permission revoked */ }
       }
     });
   };
