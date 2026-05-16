@@ -118,7 +118,7 @@ export const Index: React.FC = () => {
         }
       });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Restore saved username + password only if user previously opted in

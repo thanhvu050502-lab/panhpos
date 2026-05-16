@@ -83,7 +83,7 @@ function layoutBlocks(appts: any[], containerW: number) {
 }
 
 export const AppointmentsScreen: React.FC = () => {
-  const { cache, dbUpdate, dbDelete } = useCache();
+  const { cache, dbUpdate } = useCache();
   const { t } = useLang();
   const today = todayStr();
   const [calView, setCalView] = useState<'month' | 'week' | 'day'>('day');

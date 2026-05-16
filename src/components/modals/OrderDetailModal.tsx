@@ -44,7 +44,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, ord
   const handleMarkPaid = () => {
     // Reconstruct orderState from the saved order and open PaymentModal
     const orderItems = order.order_items || [];
-    ;(window as any)._orderState = {
+    window._orderState = {
       customer: { name: order.customer_name, id: order.customer_id },
       cart: orderItems.map((i: any) => ({
         catalog_id: i.catalog_id || null,

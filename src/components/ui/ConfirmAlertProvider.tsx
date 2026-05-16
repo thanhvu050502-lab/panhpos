@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { useLang } from '../../contexts/LangContext';
 
 export interface ConfirmOptions {
   title: string;
@@ -22,6 +23,7 @@ export const useConfirmAlert = () => {
 };
 
 export const ConfirmAlertProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useLang();
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((value: boolean) => void) | null>(null);
@@ -62,6 +64,10 @@ export const ConfirmAlertProvider: React.FC<{ children: React.ReactNode }> = ({ 
           }}
         >
           <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="confirm-alert-title"
+            aria-describedby="confirm-alert-message"
             style={{
               background: 'white',
               borderRadius: '20px',
@@ -77,10 +83,10 @@ export const ConfirmAlertProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 @keyframes scaleIn { from { transform: scale(0.95); } to { transform: scale(1); } }
               `}
             </style>
-            <div style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: '#171717' }}>
+            <div id="confirm-alert-title" style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: '#171717' }}>
               {options.title}
             </div>
-            <div style={{ fontSize: '14px', color: '#737373', lineHeight: 1.5, marginBottom: '20px' }}>
+            <div id="confirm-alert-message" style={{ fontSize: '14px', color: '#737373', lineHeight: 1.5, marginBottom: '20px' }}>
               {options.message}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -97,7 +103,7 @@ export const ConfirmAlertProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   cursor: 'pointer',
                 }}
               >
-                Huỷ
+                {t('Huỷ')}
               </button>
               <button
                 onClick={() => handleClose(true)}
@@ -112,7 +118,7 @@ export const ConfirmAlertProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   cursor: 'pointer',
                 }}
               >
-                {options.confirmLabel || 'Xác nhận'}
+                {options.confirmLabel || t('Xác nhận')}
               </button>
             </div>
           </div>
