@@ -109,8 +109,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, 
       paymentRows = [{ payment_method_id: selectedMethodId, payment_method_name: selectedMethod?.name || '', amount: finalAmount }];
     }
 
-    // Reuse stable IDs across retries; reset only when the payment plan changes.
-    const shape = `${isSplit ? 'split' : 'single'}|${paymentRows.length}`;
+    // Reuse stable IDs across retries; reset when the payment plan changes
+    // (split/single mode, amounts, methods) — those are genuinely new
+    // transactions, not idempotent retries of the same one.
+    const shape = JSON.stringify({
+      mode: isSplit ? 'split' : 'single',
+      rows: paymentRows.map(p => ({ m: p.payment_method_id, a: p.amount })),
+    });
     if (!txnRef.current || txnRef.current.paymentShape !== shape) {
       txnRef.current = {
         orderId: uid(),
