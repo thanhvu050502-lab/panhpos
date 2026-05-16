@@ -223,7 +223,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, 
       <div className="modal" style={{ maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }}>
         <div className="mhandle"></div>
         <div className="mhdr">
-          <div className="mttl">Thanh toán</div>
+          <div className="mttl">{t('Thanh toán')}</div>
           <button className="mclose" onClick={onClose}>×</button>
         </div>
         <div className="mbody" style={{ flex: 1, overflowY: 'auto' }}>
@@ -276,17 +276,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, 
             isCash ? (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--ink3)', marginBottom: '10px' }}>
-                  <span>Tổng dịch vụ</span>
+                  <span>{t('Tổng dịch vụ')}</span>
                   <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{finalAmount.toLocaleString('vi-VN')}đ</span>
                 </div>
                 <div className="fg">
                   <label className="flbl">{t('Tiền khách đưa')}</label>
-                  <input className="fc" type="number" placeholder="Nhập số tiền..." value={payAmt} onChange={(e) => setPayAmt(e.target.value)} />
+                  <input className="fc" type="number" placeholder={t('Nhập số tiền...')} value={payAmt} onChange={(e) => setPayAmt(e.target.value)} />
                 </div>
                 {got >= finalAmount && (
                   <div style={{ background: 'var(--green-bg)', borderRadius: 'var(--r)', padding: '10px 14px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                      <span style={{ color: 'var(--ink3)' }}>Tiền khách đưa</span>
+                      <span style={{ color: 'var(--ink3)' }}>{t('Tiền khách đưa')}</span>
                       <span style={{ fontWeight: 600 }}>{got.toLocaleString('vi-VN')}đ</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginTop: '4px' }}>
@@ -304,18 +304,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, 
                   <select className="fc" style={{ flex: 1, padding: '8px' }} value={s.method_id} onChange={(e) => updateSplit(i, 'method_id', e.target.value)}>
                     {methods.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
-                  <input type="number" className="fc" style={{ width: '110px', padding: '8px' }} placeholder="Số tiền" value={s.amount || ''} onChange={(e) => updateSplit(i, 'amount', e.target.value)} />
+                  <input type="number" className="fc" style={{ width: '110px', padding: '8px' }} placeholder={t('Số tiền')} value={s.amount || ''} onChange={(e) => updateSplit(i, 'amount', e.target.value)} />
                   <button style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--red-bg)', color: 'var(--red)', border: 'none' }} onClick={() => removeSplit(i)}>×</button>
                 </div>
               ))}
-              <button className="btn ghost sm" style={{ marginTop: '8px' }} onClick={addSplitItem}>+ Thêm phương thức</button>
+              <button className="btn ghost sm" style={{ marginTop: '8px' }} onClick={addSplitItem}>+ {t('Thêm phương thức')}</button>
               <div style={{ marginTop: '10px', background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: 'var(--ink3)' }}>Đã nhập:</span>
+                  <span style={{ color: 'var(--ink3)' }}>{t('Đã nhập')}:</span>
                   <span style={{ fontWeight: 600 }}>{splitSum.toLocaleString('vi-VN')}đ</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginTop: '4px' }}>
-                  <span style={{ color: 'var(--ink3)' }}>Còn lại:</span>
+                  <span style={{ color: 'var(--ink3)' }}>{t('Còn lại')}:</span>
                   <span style={{ fontWeight: 600, color: splitRem === 0 ? 'var(--green)' : 'var(--red)' }}>{splitRem.toLocaleString('vi-VN')}đ</span>
                 </div>
               </div>
