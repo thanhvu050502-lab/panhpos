@@ -25,20 +25,31 @@ import { useIdleTimeout } from '../hooks/useIdleTimeout';
 import { ToastProvider, toast } from '../components/ui/Toast';
 import { clearSupabaseConfig, getStoredCreds, getSupabase, hasEnvCreds, initSupabase, testSupabaseConnection, tryInitAndPing } from '../lib/supabaseClient';
 import { useConfirmAlert } from '../hooks/useConfirmAlert';
+import { get as idbGet, set as idbSet } from 'idb-keyval';
 
-// AES-GCM "remember password" — encrypted with a per-device key so it's not
-// plain-text in localStorage. Key and ciphertext are on the same device,
-// same as a browser's built-in password manager on a trusted device.
+// AES-GCM "remember password" — encrypted with a per-device key. The key is
+// non-extractable and lives in IndexedDB rather than localStorage so that even
+// an XSS payload can only USE the key (encrypt/decrypt the local ciphertext),
+// not exfiltrate the raw bytes. Browser stores it the same way the built-in
+// password manager would: on the device, scoped to origin.
+const RP_KEY_ID = 'np_rp_key_v2';
 const _rpB64 = {
   enc: (b: Uint8Array) => btoa(String.fromCharCode(...Array.from(b))),
   dec: (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0)),
 };
 async function _getRpKey(): Promise<CryptoKey> {
-  const s = localStorage.getItem('np_rp_key');
-  if (s) return crypto.subtle.importKey('raw', _rpB64.dec(s), 'AES-GCM', false, ['encrypt', 'decrypt']);
-  const k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-  localStorage.setItem('np_rp_key', _rpB64.enc(new Uint8Array(await crypto.subtle.exportKey('raw', k))));
-  return k;
+  const existing = await idbGet<CryptoKey>(RP_KEY_ID);
+  if (existing) return existing;
+  // First boot post-upgrade (or fresh install): generate a new non-extractable key.
+  const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  await idbSet(RP_KEY_ID, key);
+  // Drop the legacy extractable key + any ciphertext tied to it; the user will
+  // need to re-tick "remember me" once to seed the new envelope.
+  try {
+    localStorage.removeItem('np_rp_key');
+    localStorage.removeItem('np_rp_pwd');
+  } catch { /* storage disabled */ }
+  return key;
 }
 async function _encryptPwd(pwd: string): Promise<string> {
   const k = await _getRpKey();
