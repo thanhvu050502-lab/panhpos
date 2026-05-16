@@ -63,7 +63,11 @@ const upsertInArray = (arr: any[], row: any) => {
   const idx = arr.findIndex((r) => r.id === row.id);
   if (idx === -1) return [row, ...arr];
   const next = arr.slice();
-  next[idx] = { ...next[idx], ...row };
+  // Drop the optimistic `_queued` flag when a fresh row lands (typically from
+  // realtime echo after a queued write replays). Server payloads never carry
+  // `_queued`, so a plain spread merge would otherwise leave it stuck as true.
+  const { _queued: _prevQueued, ...prev } = next[idx];
+  next[idx] = { ...prev, ...row };
   return next;
 };
 
