@@ -15,11 +15,13 @@ interface OrderDetailModalProps {
 export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, orderId, open = true }) => {
   const { cache, dbUpdate } = useCache();
   const { session } = useAuth();
-  const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonId, setCancelReasonId] = useState('');
+  const [cancelNote, setCancelNote] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const order = cache.orders?.find((o: any) => o.id === orderId);
   const canManage = ['owner', 'manager'].includes(session?.role || '');
+  const cancelReasons = (cache.cancelReasons || []).filter((r: any) => r.active);
 
   if (!order) {
     return (
@@ -71,13 +73,22 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, ord
       toast('Chỉ chủ tiệm hoặc quản lý mới được huỷ đơn', 'error');
       return;
     }
-    if (!cancelReason.trim()) {
-      toast('Vui lòng nhập lý do huỷ', 'error');
+    if (!cancelReasonId && !cancelNote.trim()) {
+      toast('Vui lòng chọn lý do hoặc nhập ghi chú', 'error');
       return;
     }
+    const reasonLabel = cancelReasons.find((r: any) => r.id === cancelReasonId)?.label || '';
+    const isDemo = cache.settings?.app_name === 'Demo';
     try {
-      await dbUpdate('orders', order.id, { status: 'cancelled', notes: (order.notes ? order.notes + '\n' : '') + 'Huỷ: ' + cancelReason }, cache.settings?.app_name === 'Demo');
-      logAudit('order_cancelled', 'order', `Huỷ đơn ${order.code || order.id.slice(0,8).toUpperCase()} - ${order.customer_name} - Lý do: ${cancelReason}`, order.id, session?.displayName || session?.username);
+      const patch: any = {
+        status: 'cancelled',
+        cancel_reason_id: cancelReasonId || null,
+        cancel_note: cancelNote.trim() || null,
+        cancelled_at: new Date().toISOString(),
+      };
+      await dbUpdate('orders', order.id, patch, isDemo);
+      const auditDetail = [reasonLabel, cancelNote.trim()].filter(Boolean).join(' — ') || '(không lý do)';
+      logAudit('order_cancelled', 'order', `Huỷ đơn ${order.code || order.id.slice(0,8).toUpperCase()} - ${order.customer_name} - ${auditDetail}`, order.id, session?.displayName || session?.username);
       toast('Đã huỷ đơn hàng', 'success');
       onClose();
     } catch (e: any) {
@@ -85,26 +96,47 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, ord
     }
   };
 
+  const closeCancelConfirm = () => {
+    setShowCancelConfirm(false);
+    setCancelReasonId('');
+    setCancelNote('');
+  };
+
   if (showCancelConfirm) {
     return (
-      <div className="moverlay open" onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) setShowCancelConfirm(false); }}>
+      <div className="moverlay open" onClick={(e) => { if ((e.target as any).classList.contains('moverlay')) closeCancelConfirm(); }}>
         <div className="modal" style={{ maxHeight: '50dvh' }}>
           <div className="mhandle"></div>
           <div className="mhdr">
             <div className="mttl">Huỷ đơn hàng</div>
-            <button className="mclose" onClick={() => setShowCancelConfirm(false)}>×</button>
+            <button className="mclose" onClick={closeCancelConfirm}>×</button>
           </div>
           <div className="mbody">
             <div style={{ background: 'var(--red-bg)', borderRadius: '10px', padding: '10px 14px', marginBottom: '14px', fontSize: '13px', color: 'var(--red)' }}>
               ⚠️ Đơn hàng sẽ chuyển sang trạng thái <strong>Đã huỷ</strong>. Không thể hoàn tác.
             </div>
             <div className="fg">
-              <label className="flbl">Lý do huỷ <span className="req">*</span></label>
-              <textarea className="fc" placeholder="VD: Khách đổi ý, khách không đến..." rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}></textarea>
+              <label className="flbl">Lý do huỷ {cancelReasons.length > 0 ? <span className="req">*</span> : null}</label>
+              {cancelReasons.length > 0 ? (
+                <select className="fc" value={cancelReasonId} onChange={(e) => setCancelReasonId(e.target.value)}>
+                  <option value="">— Chọn lý do —</option>
+                  {cancelReasons.map((r: any) => (
+                    <option key={r.id} value={r.id}>{r.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ fontSize: '12px', color: 'var(--ink4)', marginBottom: '8px' }}>
+                  Chưa cấu hình danh sách lý do. Vào <strong>Cài đặt → Lý do hủy đơn</strong> để thêm.
+                </div>
+              )}
+            </div>
+            <div className="fg">
+              <label className="flbl">Ghi chú thêm{cancelReasons.length === 0 ? ' ' : ' (tùy chọn)'}{cancelReasons.length === 0 ? <span className="req">*</span> : null}</label>
+              <textarea className="fc" placeholder="VD: Khách đổi ý, khách không đến..." rows={3} value={cancelNote} onChange={(e) => setCancelNote(e.target.value)}></textarea>
             </div>
           </div>
           <div className="mfoot">
-            <button className="btn outline" style={{ flex: 1 }} onClick={() => setShowCancelConfirm(false)}>Quay lại</button>
+            <button className="btn outline" style={{ flex: 1 }} onClick={closeCancelConfirm}>Quay lại</button>
             <button className="btn danger" style={{ flex: 1 }} onClick={handleCancelOrder}>Xác nhận huỷ</button>
           </div>
         </div>
@@ -168,6 +200,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ onClose, ord
                   <span style={{ fontWeight: 600 }}>{formatCurrency(p.amount)}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {order.status === 'cancelled' && (order.cancel_reason_id || order.cancel_note) && (
+            <div style={{ fontSize: '13px', color: 'var(--red)', background: 'var(--red-bg)', border: '1px solid var(--red)', borderRadius: '8px', padding: '8px 12px', marginBottom: '8px' }}>
+              <strong>Lý do hủy:</strong>{' '}
+              {cache.cancelReasons?.find((r: any) => r.id === order.cancel_reason_id)?.label || (order.cancel_note ? '' : '—')}
+              {order.cancel_note ? (order.cancel_reason_id ? ` — ${order.cancel_note}` : order.cancel_note) : ''}
             </div>
           )}
 

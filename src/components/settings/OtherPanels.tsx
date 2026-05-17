@@ -498,6 +498,7 @@ export const CaPanel: React.FC = () => {
   const [endTime, setEndTime] = useState('');
   const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
   const [openNote, setOpenNote] = useState('');
+  const [openingFloat, setOpeningFloat] = useState('');
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [actualCash, setActualCash] = useState('');
   const [closeNote, setCloseNote] = useState('');
@@ -535,8 +536,10 @@ export const CaPanel: React.FC = () => {
 
   const handleOpenShift = () => {
     if (!selectedTplId) { toast('Vui lòng chọn loại ca', 'error'); return; }
-    openShift(selectedTplId, selectedStaff, startTime, endTime, openNote);
-    setSelectedTplId(''); setOpenNote(''); setSelectedStaff([]);
+    const floatNum = parseInt(openingFloat) || 0;
+    if (floatNum < 0) { toast('Tiền đầu ca không hợp lệ', 'error'); return; }
+    openShift(selectedTplId, selectedStaff, startTime, endTime, openNote, floatNum);
+    setSelectedTplId(''); setOpenNote(''); setSelectedStaff([]); setOpeningFloat('');
     toast('Đã mở ca thành công', 'success');
   };
 
@@ -546,12 +549,14 @@ export const CaPanel: React.FC = () => {
   const shiftPending = shiftOrders.filter((o: any) => o.status === 'pending').length;
 
   const shiftPaidOrders = shiftOrders.filter((o: any) => o.status === 'paid');
-  const expectedCash = shiftPaidOrders.reduce((s: number, o: any) => {
+  const cashSales = shiftPaidOrders.reduce((s: number, o: any) => {
     return s + (o.payments || []).filter((p: any) => {
       const mn = (p.payment_method_name || '').toLowerCase();
       return mn.includes('tiền mặt') || mn.includes('cash');
     }).reduce((ps: number, p: any) => ps + (p.amount || 0), 0);
   }, 0);
+  const openingFloatAmt = (activeShift as any)?.openingFloat || 0;
+  const expectedCash = openingFloatAmt + cashSales;
 
   const actualCashNum = parseInt(actualCash) || 0;
   const cashDiff = actualCashNum - expectedCash;
@@ -565,7 +570,7 @@ export const CaPanel: React.FC = () => {
   });
 
   const handleCloseShift = () => {
-    closeShift(orders, actualCashNum, closeNote);
+    closeShift(orders, actualCashNum, closeNote, expectedCash);
     setShowCloseModal(false);
     setActualCash(''); setCloseNote('');
     toast('Đã đóng ca', 'success');
@@ -583,6 +588,8 @@ export const CaPanel: React.FC = () => {
       ``,
       ...Object.entries(payBreakdown).map(([k, v]) => `${k}: ${VND(v)}`),
       ``,
+      `Tiền đầu ca: ${VND(openingFloatAmt)}`,
+      `Tiền mặt bán hàng: ${VND(cashSales)}`,
       `Tiền mặt dự kiến: ${VND(expectedCash)}`,
       `Tiền mặt thực tế: ${VND(actualCashNum)}`,
       cashDiff === 0 ? '✓ Khớp' : cashDiff > 0 ? `Thừa ${VND(cashDiff)}` : `Thiếu ${VND(Math.abs(cashDiff))}`,
@@ -629,6 +636,11 @@ export const CaPanel: React.FC = () => {
                   ))}
                 </div>
               </div>
+              <div className="fg" style={{ marginBottom: '10px' }}>
+                <label className="flbl" style={{ fontSize: '11px', color: 'var(--ink3)', fontWeight: 600 }}>Tiền mặt đầu ca (đ)</label>
+                <input className="fc" type="number" min="0" placeholder="0" value={openingFloat} onChange={e => setOpeningFloat(e.target.value)} style={{ marginTop: '4px' }} />
+                <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '4px' }}>Tiền có sẵn trong tủ trước khi mở ca — dùng để đối soát cuối ca.</div>
+              </div>
               <textarea className="fc" placeholder="Ghi chú đầu ca..." rows={2} value={openNote} onChange={e => setOpenNote(e.target.value)} style={{ marginBottom: '10px' }} />
             </div>
           )}
@@ -651,7 +663,16 @@ export const CaPanel: React.FC = () => {
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand)' }}>{VND(s.revenue || 0)}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--ink4)' }}>{s.orderCount || 0} đơn</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink4)' }}>
+                        {s.orderCount || 0} đơn
+                        {typeof s.variance === 'number' && s.variance !== 0 ? (
+                          <span style={{ marginLeft: '4px', color: s.variance > 0 ? 'var(--blue)' : 'var(--red)', fontWeight: 600 }}>
+                            · {s.variance > 0 ? '+' : ''}{VND(s.variance)}
+                          </span>
+                        ) : typeof s.variance === 'number' ? (
+                          <span style={{ marginLeft: '4px', color: 'var(--green)' }}>· ✓</span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -670,6 +691,7 @@ export const CaPanel: React.FC = () => {
             <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
               Mở lúc: {activeShift.openTime ? new Date(activeShift.openTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''}
               {activeShift.staff?.length ? ' · ' + activeShift.staff.join(', ') : ''}
+              {openingFloatAmt > 0 ? ' · Quỹ đầu: ' + VND(openingFloatAmt) : ''}
             </div>
           </div>
 
@@ -734,13 +756,27 @@ export const CaPanel: React.FC = () => {
                   </div>
                 ))}
               </div>
+              <div style={{ background: 'var(--bg3)', borderRadius: '12px', padding: '12px', marginBottom: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '6px' }}>Đối soát tiền mặt</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px', color: 'var(--ink3)' }}>
+                  <span>Tiền đầu ca</span>
+                  <span>{VND(openingFloatAmt)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px', color: 'var(--ink3)' }}>
+                  <span>+ Tiền mặt bán hàng</span>
+                  <span>{VND(cashSales)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, borderTop: '1px dashed var(--bdr2)', paddingTop: '6px', marginTop: '4px' }}>
+                  <span>= Dự kiến trong tủ</span>
+                  <span>{VND(expectedCash)}</span>
+                </div>
+              </div>
               <div className="fg" style={{ marginBottom: '10px' }}>
                 <label className="flbl">Tiền mặt thực tế (đ)</label>
                 <input className="fc" type="number" placeholder="Nhập số tiền đếm được..." value={actualCash} onChange={e => setActualCash(e.target.value)} />
                 {actualCash && (
                   <div style={{ marginTop: '6px', fontSize: '13px', fontWeight: 600, color: cashDiff === 0 ? 'var(--green)' : cashDiff > 0 ? 'var(--blue)' : 'var(--red)' }}>
                     {cashDiff === 0 ? '✓ Khớp' : cashDiff > 0 ? `Thừa ${VND(cashDiff)}` : `Thiếu ${VND(Math.abs(cashDiff))}`}
-                    <span style={{ fontWeight: 400, color: 'var(--ink3)', marginLeft: '6px' }}>· Dự kiến: {VND(expectedCash)}</span>
                   </div>
                 )}
               </div>
@@ -1064,6 +1100,98 @@ export const AuditLogPanel: React.FC = () => {
             <button className="btn danger outline full" onClick={handleClear}>🗑️ Xoá toàn bộ nhật ký</button>
           </div>
         </>
+      )}
+    </div>
+  );
+};
+
+// ─── Cancel Reasons Panel ─────────────────────────────────────────────────────
+export const CancelReasonsPanel: React.FC = () => {
+  const { cache, dbInsert, dbUpdate, dbDelete, fetchAll } = useCache();
+  const { confirm } = useConfirmAlert();
+  const list = (cache.cancelReasons || []) as any[];
+
+  const blank = { label: '', sort_order: '' };
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(blank);
+
+  const resetForm = () => { setForm(blank); setShowForm(false); };
+
+  const handleAdd = async () => {
+    if (!form.label.trim()) { toast('Vui lòng nhập tên lý do', 'error'); return; }
+    const sortOrder = Number(form.sort_order) || (list.length ? Math.max(...list.map(r => r.sort_order || 0)) + 10 : 10);
+    try {
+      await dbInsert('cancel_reasons', { id: uid(), label: form.label.trim(), sort_order: sortOrder, active: true }, isDemoMode());
+      if (!isDemoMode()) await fetchAll(false);
+      toast('Đã thêm lý do', 'success');
+      resetForm();
+    } catch (e: any) {
+      toast(`Lỗi: ${e.message || 'Không thể thêm'}`, 'error');
+    }
+  };
+
+  const handleToggleActive = async (r: any) => {
+    try {
+      await dbUpdate('cancel_reasons', r.id, { active: !r.active }, isDemoMode());
+      if (!isDemoMode()) await fetchAll(false);
+    } catch (e: any) {
+      toast(`Lỗi: ${e.message || 'Không thể cập nhật'}`, 'error');
+    }
+  };
+
+  const handleRemove = async (id: string, label: string) => {
+    const ok = await confirm({ title: 'Xóa lý do hủy', message: `Xóa "${label}"? Các đơn đã hủy với lý do này sẽ không bị ảnh hưởng.`, confirmLabel: 'Xóa', confirmVariant: 'danger' });
+    if (!ok) return;
+    try {
+      await dbDelete('cancel_reasons', id, isDemoMode());
+      if (!isDemoMode()) await fetchAll(false);
+      toast('Đã xóa', 'success');
+    } catch (e: any) {
+      toast(`Lỗi: ${e.message || 'Không thể xóa'}`, 'error');
+    }
+  };
+
+  return (
+    <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+      <div className="card" style={{ marginBottom: '12px' }}>
+        {list.length ? list.map(r => (
+          <div className="srow" key={r.id} style={{ opacity: r.active ? 1 : 0.5 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="slbl">{r.label}</div>
+              <div className="ssub">Thứ tự: {r.sort_order ?? 0}{r.active ? '' : ' · Đã ẩn'}</div>
+            </div>
+            <label className="tgl" style={{ marginRight: '8px' }}>
+              <input type="checkbox" checked={!!r.active} onChange={() => handleToggleActive(r)} />
+              <div className="tgl-sl" />
+            </label>
+            <button className="btn danger sm" onClick={() => handleRemove(r.id, r.label)}>🗑</button>
+          </div>
+        )) : (
+          <div className="empty"><div className="empty-ico">📝</div><div className="empty-ttl">Chưa có lý do nào</div></div>
+        )}
+      </div>
+      <button className="btn outline full" onClick={() => setShowForm(true)}>+ Thêm lý do</button>
+
+      {showForm && (
+        <Sheet
+          title="Thêm lý do hủy"
+          onClose={resetForm}
+          footer={
+            <>
+              <button className="btn outline" style={{ flex: 1 }} onClick={resetForm}>Huỷ</button>
+              <button className="btn brand" style={{ flex: 2 }} onClick={handleAdd}>Lưu</button>
+            </>
+          }
+        >
+          <div className="fg">
+            <label className="flbl">Tên lý do <span className="req">*</span></label>
+            <input className="fc" placeholder="VD: Khách đổi ý, Hết vật tư..." value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+          </div>
+          <div className="fg">
+            <label className="flbl">Thứ tự hiển thị (tùy chọn)</label>
+            <input className="fc" type="number" placeholder="Tự động nếu để trống" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))} />
+          </div>
+        </Sheet>
       )}
     </div>
   );
