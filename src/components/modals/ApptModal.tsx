@@ -302,12 +302,12 @@ export const ApptModal: React.FC<ApptModalProps> = ({ onClose, apptId, open = tr
             </div>
           </div>
 
-          {members.length > 0 && (
+          {members.filter((m: any) => !m.is_hidden).length > 0 && (
             <div className="fg">
               <label className="flbl">Nhân viên phụ trách</label>
               <select className="fc" value={staffName} onChange={e => setStaffName(e.target.value)}>
                 <option value="">— Chọn nhân viên —</option>
-                {members.map((m: any) => (
+                {members.filter((m: any) => !m.is_hidden).map((m: any) => (
                   <option key={m.id} value={m.displayName || m.name}>{m.displayName || m.name}</option>
                 ))}
               </select>

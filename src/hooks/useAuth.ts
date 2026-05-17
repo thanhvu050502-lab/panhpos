@@ -57,6 +57,9 @@ export interface Member {
   /** Master account flag: forces user to set password on first login.
    *  Always false in Supabase mode (bootstrap is done via dashboard). */
   mustSetPassword?: boolean;
+  /** When true, the member is filtered out of staff-selector dropdowns
+   *  (Order, Appointment, Shift). Still visible in Account Management. */
+  is_hidden?: boolean;
   createdAt?: string;
   updatedAt?: string;
   addedAt?: string;
@@ -89,6 +92,7 @@ const memberFromRow = (row: any): Member => {
     isMaster: row?.role === 'owner',
     passwordVersion: 1,
     mustSetPassword: false,
+    is_hidden: !!row?.is_hidden,
     createdAt: row?.created_at,
     updatedAt: row?.updated_at,
     addedAt: row?.created_at,
@@ -114,6 +118,7 @@ export function useAuth() {
       isMaster: !!raw?.isMaster,
       passwordVersion: Number.isFinite(parsedVersion) && parsedVersion > 0 ? parsedVersion : 1,
       mustSetPassword: !!raw?.mustSetPassword,
+      is_hidden: !!raw?.is_hidden,
       createdAt: raw?.createdAt || raw?.addedAt || nowIso,
       updatedAt: raw?.updatedAt || nowIso,
       addedAt: raw?.addedAt || raw?.createdAt || nowIso,
@@ -343,7 +348,7 @@ export function useAuth() {
     return membersCache.find(m => m.username.toLowerCase() === u);
   };
 
-  const addMember = async (username: string, name: string, role: string, password?: string) => {
+  const addMember = async (username: string, name: string, role: string, password?: string, isHidden?: boolean) => {
     const nowIso = new Date().toISOString();
     const normalizedUsername = username.toLowerCase().trim();
 
@@ -355,9 +360,11 @@ export function useAuth() {
       // change for someone else requires the service role, not available here).
       const existing = membersCache.find(m => m.username === normalizedUsername);
       if (existing) {
+        // Master account is never hidden (would lock owner out of their own selector).
+        const hiddenValue = existing.isMaster ? false : !!isHidden;
         const { error } = await sb
           .from('members')
-          .update({ display_name: name || existing.displayName || normalizedUsername, role })
+          .update({ display_name: name || existing.displayName || normalizedUsername, role, is_hidden: hiddenValue })
           .eq('id', existing.id);
         if (error) throw error;
         await refreshMembersFromSupabase();
@@ -383,6 +390,7 @@ export function useAuth() {
         username: normalizedUsername,
         display_name: name || normalizedUsername,
         role,
+        is_hidden: !!isHidden,
       });
       if (insertError) throw insertError;
       await refreshMembersFromSupabase();
@@ -412,6 +420,7 @@ export function useAuth() {
           password: '',
           mustSetPassword: hasNewPassword ? false : existing.mustSetPassword,
           passwordVersion: nextVersion,
+          is_hidden: false,
           updatedAt: nowIso
         };
       } else {
@@ -423,6 +432,7 @@ export function useAuth() {
           passwordHash: newHash ?? existing.passwordHash ?? '',
           password: '',
           passwordVersion: nextVersion,
+          is_hidden: !!isHidden,
           updatedAt: nowIso
         };
       }
@@ -436,6 +446,7 @@ export function useAuth() {
         passwordHash: newHash ?? '',
         isMaster: false,
         passwordVersion: 1,
+        is_hidden: !!isHidden,
         addedAt: nowIso,
         createdAt: nowIso,
         updatedAt: nowIso

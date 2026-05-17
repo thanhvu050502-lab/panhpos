@@ -621,7 +621,7 @@ export const CaPanel: React.FC = () => {
               <div style={{ marginBottom: '10px' }}>
                 <label style={{ fontSize: '11px', color: 'var(--ink3)', fontWeight: 600 }}>Nhân viên</label>
                 <div className="chips" style={{ marginTop: '6px', flexWrap: 'wrap' }}>
-                  {members.map((m: any) => (
+                  {members.filter((m: any) => !m.is_hidden).map((m: any) => (
                     <div key={m.id} className={`chip${selectedStaff.includes(m.displayName || m.name) ? ' on' : ''}`}
                       onClick={() => setSelectedStaff(prev => prev.includes(m.displayName || m.name) ? prev.filter(s => s !== (m.displayName || m.name)) : [...prev, m.displayName || m.name])}>
                       {m.displayName || m.name}
