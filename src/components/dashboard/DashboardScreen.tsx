@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useCache } from '../../hooks/useCache';
 import { useShift } from '../../hooks/useShift';
 import { useLang } from '../../contexts/LangContext';
@@ -13,6 +13,55 @@ interface DashboardScreenProps {
   onViewReport?: () => void;
 }
 
+type Period = 'day' | 'yesterday' | 'week' | 'month' | 'year';
+
+const PERIOD_OPTIONS: Array<{ value: Period; label: string }> = [
+  { value: 'day', label: 'Hôm nay' },
+  { value: 'yesterday', label: 'Hôm qua' },
+  { value: 'week', label: '7 ngày' },
+  { value: 'month', label: 'Tháng này' },
+  { value: 'year', label: 'Năm nay' },
+];
+
+const PERIOD_LABEL: Record<Period, string> = {
+  day: 'hôm nay',
+  yesterday: 'hôm qua',
+  week: '7 ngày qua',
+  month: 'tháng này',
+  year: 'năm nay',
+};
+
+function periodRange(period: Period): { fromDate: string; toDate: string } {
+  const now = new Date();
+  const ts = (d: Date) => d.toISOString().split('T')[0];
+  const today = todayStr();
+  if (period === 'day') return { fromDate: today, toDate: today };
+  if (period === 'yesterday') {
+    const d = new Date(now); d.setDate(d.getDate() - 1); const s = ts(d);
+    return { fromDate: s, toDate: s };
+  }
+  if (period === 'week') {
+    const d = new Date(now); d.setDate(d.getDate() - 7); return { fromDate: ts(d), toDate: today };
+  }
+  if (period === 'month') return { fromDate: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, toDate: today };
+  return { fromDate: `${now.getFullYear()}-01-01`, toDate: today };
+}
+
+const PERIOD_KEY = 'np_dashboard_periods';
+const CHAIRS_KEY = 'np_total_chairs';
+
+const PeriodSelect: React.FC<{ value: Period; onChange: (p: Period) => void }> = ({ value, onChange }) => (
+  <select
+    className="fc"
+    style={{ height: '24px', padding: '0 18px 0 6px', fontSize: '10.5px', width: 'auto', minWidth: 0, border: '1px solid var(--bdr)', background: 'var(--bg)', color: 'var(--ink3)', fontWeight: 500 }}
+    value={value}
+    onChange={e => onChange(e.target.value as Period)}
+    onClick={e => e.stopPropagation()}
+  >
+    {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+  </select>
+);
+
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onViewAppointments,
   onViewOrders,
@@ -22,42 +71,81 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const { cache, fetchAll } = useCache();
   const { activeShift } = useShift();
   const { t } = useLang();
-  const [dashFilter, setDashFilter] = useState<'day' | 'yesterday' | 'week' | 'month' | 'year'>('day');
 
-  const { fromDate, toDate } = useMemo(() => {
-    const now = new Date();
-    const ts = (d: Date) => d.toISOString().split('T')[0];
-    const today = todayStr();
-    if (dashFilter === 'day') return { fromDate: today, toDate: today };
-    if (dashFilter === 'yesterday') {
-      const d = new Date(now); d.setDate(d.getDate() - 1); const s = ts(d);
-      return { fromDate: s, toDate: s };
-    }
-    if (dashFilter === 'week') {
-      const d = new Date(now); d.setDate(d.getDate() - 7); return { fromDate: ts(d), toDate: today };
-    }
-    if (dashFilter === 'month') return { fromDate: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, toDate: today };
-    return { fromDate: `${now.getFullYear()}-01-01`, toDate: today };
-  }, [dashFilter]);
-
-  const allOrders = cache.orders || [];
-  const filtered = allOrders.filter(o => {
-    const d = (o.created_at || '').slice(0, 10);
-    return d >= fromDate && d <= toDate && o.status !== 'cancelled';
+  // Per-card period state, persisted to localStorage so the owner's view sticks.
+  const [cardPeriods, setCardPeriods] = useState<Record<string, Period>>(() => {
+    if (typeof window === 'undefined') return {};
+    try { return JSON.parse(localStorage.getItem(PERIOD_KEY) || '{}'); }
+    catch { return {}; }
   });
-  const paid = filtered.filter(o => o.status === 'paid');
-  const revenue = paid.reduce((s, o) => s + (o.final_amount || 0), 0);
-  const pending = allOrders.filter(o => o.status === 'pending').length;
-  
-  const todayAppts = (cache.appointments || []).filter(a => (a.scheduled_at || a.datetime || '').startsWith(todayStr()));
 
+  const setPeriod = useCallback((key: string, p: Period) => {
+    setCardPeriods(prev => {
+      const next = { ...prev, [key]: p };
+      try { localStorage.setItem(PERIOD_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      return next;
+    });
+  }, []);
+
+  const getPeriod = (key: string, fallback: Period = 'day'): Period => cardPeriods[key] || fallback;
+
+  const allOrders = useMemo(() => cache.orders || [], [cache.orders]);
+  const allCustomers = useMemo(() => cache.customers || [], [cache.customers]);
+  const allAppts = useMemo(() => cache.appointments || [], [cache.appointments]);
+
+  // ── Helpers per card ─────────────────────────────────────────────────────
+  const revenuePeriod = getPeriod('revenue');
+  const revenueRange = useMemo(() => periodRange(revenuePeriod), [revenuePeriod]);
+  const revenueOrders = useMemo(() => allOrders.filter(o => {
+    const d = (o.created_at || '').slice(0, 10);
+    return d >= revenueRange.fromDate && d <= revenueRange.toDate && o.status === 'paid';
+  }), [allOrders, revenueRange]);
+  const revenue = revenueOrders.reduce((s, o) => s + (o.final_amount || 0), 0);
+
+  const completedPeriod = getPeriod('completed');
+  const completedRange = useMemo(() => periodRange(completedPeriod), [completedPeriod]);
+  const completedCount = useMemo(() => allOrders.filter(o => {
+    const d = (o.created_at || '').slice(0, 10);
+    return d >= completedRange.fromDate && d <= completedRange.toDate && o.status === 'paid';
+  }).length, [allOrders, completedRange]);
+
+  const customerPeriod = getPeriod('customers');
+  const customerRange = useMemo(() => periodRange(customerPeriod), [customerPeriod]);
+  const newCustomers = useMemo(() => allCustomers.filter((c: any) => {
+    const d = (c.created_at || '').slice(0, 10);
+    return d >= customerRange.fromDate && d <= customerRange.toDate;
+  }).length, [allCustomers, customerRange]);
+
+  const apptPeriod = getPeriod('appts');
+  const apptRange = useMemo(() => periodRange(apptPeriod), [apptPeriod]);
+  const periodAppts = useMemo(() => allAppts.filter((a: any) => {
+    const d = (a.scheduled_at || a.datetime || '').slice(0, 10);
+    return d >= apptRange.fromDate && d <= apptRange.toDate;
+  }), [allAppts, apptRange]);
+
+  // Today figures for Live Activity widget (always real-time, not filtered)
+  const todayKey = todayStr();
+  const pendingCount = allOrders.filter(o => o.status === 'pending').length;
+  const pendingAmount = allOrders.filter(o => o.status === 'pending').reduce((s, o) => s + (o.final_amount || 0), 0);
+  const todayPaid = allOrders.filter(o => (o.created_at || '').slice(0, 10) === todayKey && o.status === 'paid').length;
+  const todayAppts = allAppts.filter((a: any) => (a.scheduled_at || a.datetime || '').startsWith(todayKey));
+  const todayApptsUpcoming = todayAppts.filter((a: any) => new Date(a.scheduled_at || a.datetime).getTime() > Date.now() && a.status !== 'cancelled' && a.status !== 'done').length;
+
+  const totalChairs = useMemo(() => {
+    if (typeof window === 'undefined') return 0;
+    const v = parseInt(localStorage.getItem(CHAIRS_KEY) || '0');
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  }, []);
+  const chairUtilization = totalChairs > 0 ? Math.min(100, Math.round((pendingCount / totalChairs) * 100)) : 0;
+
+  // ── Chart (always 7-day, independent of card filters) ────────────────────
   const chartDays = useMemo(() => {
     const days = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const ds = d.toISOString().split('T')[0];
-      const rev = allOrders.filter(o => o.created_at === ds && o.status === 'paid').reduce((s, o) => s + (o.final_amount || 0), 0);
+      const rev = allOrders.filter(o => (o.created_at || '').slice(0, 10) === ds && o.status === 'paid').reduce((s, o) => s + (o.final_amount || 0), 0);
       days.push({ lbl: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()], rev, isToday: i === 0 });
     }
     return days;
@@ -65,16 +153,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const maxRev = Math.max(...chartDays.map(d => d.rev), 1);
 
+  // Top services follows the Doanh thu card's period so they tell a coherent story.
   const topSvcs = useMemo(() => {
     const svcMap: Record<string, { name: string; count: number; rev: number }> = {};
-    paid.forEach(o => (o.order_items || []).forEach((i: any) => {
+    revenueOrders.forEach(o => (o.order_items || []).forEach((i: any) => {
       const k = i.name;
       if (!svcMap[k]) svcMap[k] = { name: k, count: 0, rev: 0 };
       svcMap[k].count += (i.quantity || 1);
       svcMap[k].rev += i.price * (i.quantity || 1);
     }));
     return Object.values(svcMap).sort((a, b) => b.count - a.count).slice(0, 5);
-  }, [paid]);
+  }, [revenueOrders]);
 
   const shiftRev = useMemo(() => {
     if (!activeShift) return 0;
@@ -82,14 +171,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       .reduce((s: number, o: any) => s + (o.final_amount || 0), 0);
   }, [activeShift, allOrders]);
 
-  const dashFilterLabels: Record<string, string> = {
-    day: 'hôm nay',
-    yesterday: 'hôm qua',
-    week: '7 ngày qua',
-    month: 'tháng này',
-    year: 'năm nay'
-  };
-
+  // ── Pull-to-refresh ──────────────────────────────────────────────────────
   const PTR_THRESHOLD = 60;
   const PTR_MAX = 80;
   const touchStartY = useRef(-1);
@@ -131,6 +213,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     }
     touchStartY.current = -1;
   };
+
+  // Last close variance (for owner glance)
+  const closedShiftWithVariance = (() => {
+    try {
+      const list = JSON.parse(localStorage.getItem('np_shifts') || '[]');
+      const closed = list.find((s: any) => s.status === 'closed' && typeof s.variance === 'number');
+      return closed || null;
+    } catch { return null; }
+  })();
 
   return (
     <div
@@ -177,28 +268,84 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
       )}
 
-      {/* Filters */}
-      <div id="dFilters" style={{ marginBottom: '10px' }}>
-        <select
-          className="fc"
-          style={{ height: '36px', padding: '0 12px', fontSize: '13px', width: '160px' }}
-          value={dashFilter}
-          onChange={e => setDashFilter(e.target.value as any)}
-        >
-          <option value="day">{t('Hôm nay')}</option>
-          <option value="yesterday">{t('Hôm qua')}</option>
-          <option value="week">{t('7 ngày')}</option>
-          <option value="month">{t('Tháng này')}</option>
-          <option value="year">{t('Năm nay')}</option>
-        </select>
+      {/* Last shift variance alert */}
+      {closedShiftWithVariance && closedShiftWithVariance.variance !== 0 && (
+        <div style={{
+          fontSize: '12px', padding: '8px 12px', borderRadius: '10px', marginBottom: '10px',
+          background: closedShiftWithVariance.variance > 0 ? '#EFF6FF' : 'var(--red-bg)',
+          color: closedShiftWithVariance.variance > 0 ? 'var(--blue)' : 'var(--red)',
+          border: `1px solid ${closedShiftWithVariance.variance > 0 ? '#BFDBFE' : 'var(--red)'}44`,
+        }}>
+          <strong>Chênh lệch ca trước:</strong> {closedShiftWithVariance.variance > 0 ? `Thừa ${VND(closedShiftWithVariance.variance)}` : `Thiếu ${VND(Math.abs(closedShiftWithVariance.variance))}`}
+          {closedShiftWithVariance.date ? ` · ${closedShiftWithVariance.date}` : ''}
+        </div>
+      )}
+
+      {/* Live Activity */}
+      <div className="card" style={{ marginBottom: '10px', padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--green)', animation: 'pulse 2s infinite', display: 'inline-block' }} />
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{t('Đang hoạt động')}</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: totalChairs > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '10px' }}>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--amber)' }}>{pendingCount}</div>
+            <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '2px' }}>{t('Đang phục vụ')}</div>
+            {pendingAmount > 0 && <div style={{ fontSize: '10px', color: 'var(--ink4)' }}>{VND(pendingAmount)}</div>}
+          </div>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--green)' }}>{todayPaid}</div>
+            <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '2px' }}>{t('Đã xong hôm nay')}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--blue)' }}>{todayApptsUpcoming}</div>
+            <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '2px' }}>{t('Hẹn sắp tới')}</div>
+          </div>
+          {totalChairs > 0 && (
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: chairUtilization >= 90 ? 'var(--red)' : chairUtilization >= 60 ? 'var(--amber)' : 'var(--green)' }}>
+                {pendingCount}/{totalChairs}
+              </div>
+              <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '2px' }}>{t('Công suất')} · {chairUtilization}%</div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Metrics */}
+      {/* Metrics (each with its own period) */}
       <div className="mggrid" id="dMetrics">
-        <div className="metric"><div className="m-lbl">{t('Doanh thu')}</div><div className="m-val" style={{ color: 'var(--brand)' }}>{revenue >= 1e6 ? (revenue / 1e6).toFixed(1) + 'tr' : VND(revenue)}</div><div className="m-sub">{paid.length} {t('đơn hoàn thành')}</div></div>
-        <div className="metric"><div className="m-lbl">{t('Chờ thanh toán')}</div><div className="m-val" style={{ color: 'var(--amber)' }}>{pending}</div><div className="m-sub">{t('đơn hàng')}</div></div>
-        <div className="metric"><div className="m-lbl">{t('Khách hàng')}</div><div className="m-val" style={{ color: 'var(--blue)' }}>{(cache.customers || []).length}</div><div className="m-sub">{t('đã lưu hồ sơ')}</div></div>
-        <div className="metric"><div className="m-lbl">{t('Lịch hẹn hôm nay')}</div><div className="m-val" style={{ color: 'var(--green)' }}>{todayAppts.length}</div><div className="m-sub">{t('lịch')}</div></div>
+        <div className="metric">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <div className="m-lbl">{t('Doanh thu')}</div>
+            <PeriodSelect value={revenuePeriod} onChange={p => setPeriod('revenue', p)} />
+          </div>
+          <div className="m-val" style={{ color: 'var(--brand)' }}>{revenue >= 1e6 ? (revenue / 1e6).toFixed(1) + 'tr' : VND(revenue)}</div>
+          <div className="m-sub">{revenueOrders.length} {t('đơn hoàn thành')}</div>
+        </div>
+        <div className="metric">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <div className="m-lbl">{t('Đơn hoàn thành')}</div>
+            <PeriodSelect value={completedPeriod} onChange={p => setPeriod('completed', p)} />
+          </div>
+          <div className="m-val" style={{ color: 'var(--green)' }}>{completedCount}</div>
+          <div className="m-sub">{PERIOD_LABEL[completedPeriod]}</div>
+        </div>
+        <div className="metric">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <div className="m-lbl">{t('Khách mới')}</div>
+            <PeriodSelect value={customerPeriod} onChange={p => setPeriod('customers', p)} />
+          </div>
+          <div className="m-val" style={{ color: 'var(--blue)' }}>{newCustomers}</div>
+          <div className="m-sub">{PERIOD_LABEL[customerPeriod]}</div>
+        </div>
+        <div className="metric">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <div className="m-lbl">{t('Lịch hẹn')}</div>
+            <PeriodSelect value={apptPeriod} onChange={p => setPeriod('appts', p)} />
+          </div>
+          <div className="m-val" style={{ color: 'var(--amber)' }}>{periodAppts.length}</div>
+          <div className="m-sub">{PERIOD_LABEL[apptPeriod]}</div>
+        </div>
       </div>
 
       {/* Chart */}
@@ -222,7 +369,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         {!todayAppts.length ? (
           <div className="empty"><div className="empty-ico">📅</div><div className="empty-ttl">{t('Không có lịch hẹn hôm nay')}</div></div>
         ) : (
-          todayAppts.slice(0, 4).map(a => (
+          todayAppts.slice(0, 4).map((a: any) => (
             <div key={a.id} className="lrow tap">
               <div className="appt-tb">{(a.scheduled_at || a.datetime || '').split('T')[1]?.slice(0, 5) || ''}</div>
               <Avatar name={a.customer_name} size={30} />
@@ -248,8 +395,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </button>
       )}
 
-      {/* Top Services */}
-      <div className="shd"><h3>{t('Dịch vụ bán chạy')}</h3><span id="dTopSvcPeriod" style={{ fontSize: '11px', color: 'var(--ink4)' }}>{dashFilterLabels[dashFilter]}</span></div>
+      {/* Top Services — follows Doanh thu period */}
+      <div className="shd"><h3>{t('Dịch vụ bán chạy')}</h3><span id="dTopSvcPeriod" style={{ fontSize: '11px', color: 'var(--ink4)' }}>{PERIOD_LABEL[revenuePeriod]}</span></div>
       <div className="card" id="dTopSvc">
         {!topSvcs.length ? (
           <div className="empty" style={{ padding: '20px' }}><div className="empty-ico">💅</div><div className="empty-ttl" style={{ fontSize: '13px' }}>{t('Chưa có dữ liệu')}</div></div>

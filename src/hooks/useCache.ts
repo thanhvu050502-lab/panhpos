@@ -18,6 +18,7 @@ export interface CacheState {
   payMethods: any[];
   promotions: any[];
   groups: any[];
+  cancelReasons: any[];
   settings: any | null;
 }
 
@@ -29,6 +30,7 @@ const initialCache: CacheState = {
   payMethods: [],
   promotions: [],
   groups: [],
+  cancelReasons: [],
   settings: null
 };
 
@@ -48,6 +50,7 @@ const updateSharedCache = (updater: (prev: CacheState) => CacheState) => {
 const TABLE_CACHE_KEY: Record<string, string> = {
   payment_methods: 'payMethods',
   customer_groups: 'groups',
+  cancel_reasons: 'cancelReasons',
 };
 const toCacheKey = (table: string) => TABLE_CACHE_KEY[table] ?? table;
 
@@ -55,7 +58,7 @@ const toCacheKey = (table: string) => TABLE_CACHE_KEY[table] ?? table;
  *  are nested inside `orders` rows, so we trigger a full refetch instead. */
 const ARRAY_TABLES = new Set([
   'orders', 'customers', 'appointments', 'catalog',
-  'payment_methods', 'promotions', 'customer_groups',
+  'payment_methods', 'promotions', 'customer_groups', 'cancel_reasons',
 ]);
 
 const upsertInArray = (arr: any[], row: any) => {
@@ -101,7 +104,7 @@ export function useCache() {
     if (!sb) return;
 
     try {
-      const [s, c, g, cat, pm, pr, a, o] = await Promise.all([
+      const [s, c, g, cat, pm, pr, a, o, cr] = await Promise.all([
         sb.from('settings').select('*').single(),
         sb.from('customers').select('*,group:customer_groups(*)').order('created_at', { ascending: false }),
         sb.from('customer_groups').select('*').order('name'),
@@ -110,6 +113,7 @@ export function useCache() {
         sb.from('promotions').select('*').eq('is_active', true).order('name'),
         sb.from('appointments').select('*,customer:customers(id,name,phone)').order('scheduled_at'),
         sb.from('orders').select('*,order_items(*),payments:order_payments(*)').order('created_at', { ascending: false }).limit(200),
+        sb.from('cancel_reasons').select('*').eq('active', true).order('sort_order'),
       ]);
 
       updateSharedCache(prev => ({
@@ -122,6 +126,7 @@ export function useCache() {
         promotions: pr.data || prev.promotions,
         appointments: a.data || prev.appointments,
         orders: o.data || prev.orders,
+        cancelReasons: cr.data || prev.cancelReasons,
       }));
     } catch (err) {
       if (import.meta.env.DEV) console.error('Error fetching cache:', err);

@@ -74,7 +74,7 @@ export function useShift() {
     if (typeof window !== 'undefined') localStorage.setItem(SHIFT_TEMPLATES_KEY, JSON.stringify(t));
   };
 
-  const openShift = (templateId: string, staffList: string[], startTime: string, endTime: string, note: string) => {
+  const openShift = (templateId: string, staffList: string[], startTime: string, endTime: string, note: string, openingFloat: number = 0) => {
     const templates = getShiftTemplates();
     const tpl = templates.find(t => t.id === templateId) || templates[0];
     const shift = {
@@ -89,6 +89,7 @@ export function useShift() {
       plannedEnd: endTime || tpl?.endTime || '20:00',
       staff: staffList,
       openNote: note,
+      openingFloat: Math.max(0, openingFloat | 0),
       status: 'open',
       revenue: 0,
       orderCount: 0,
@@ -99,7 +100,7 @@ export function useShift() {
     return shift;
   };
 
-  const closeShift = (orders: any[], actualCash: number, closeNote: string) => {
+  const closeShift = (orders: any[], actualCash: number, closeNote: string, expectedCash: number = 0) => {
     const shift = getActiveShift();
     if (!shift) return null;
 
@@ -115,8 +116,19 @@ export function useShift() {
     });
     const revenue = shiftOrders.reduce((s: number, o: any) => s + (o.final_amount || 0), 0);
     const orderCount = shiftOrders.length;
+    const variance = actualCash - expectedCash;
 
-    const closed = { ...shift, status: 'closed', closeTime: closeIso, actualCash, closeNote, revenue, orderCount };
+    const closed = {
+      ...shift,
+      status: 'closed',
+      closeTime: closeIso,
+      actualCash,
+      closeNote,
+      expectedCash,
+      variance,
+      revenue,
+      orderCount,
+    };
     const existing = getShifts();
     saveShifts(existing.map((s: any) => s.id === shift.id ? closed : s));
     setActiveShift(null);
