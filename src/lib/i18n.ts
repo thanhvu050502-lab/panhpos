@@ -162,4 +162,7 @@ export const UI_TRANSLATIONS: Record<string, string> = {
   'Chưa có đơn hàng nào': 'No orders yet',
   'Không có đơn hàng trong khoảng này': 'No orders in this period',
   'Không có đơn hàng nào': 'No orders',
+  'Ẩn khỏi danh sách chọn nhân viên': 'Hide from staff selectors',
+  'Không hiển thị khi chọn nhân viên thực hiện tác vụ': 'Will not appear when selecting staff for tasks',
+  'ẨN': 'HIDDEN',
 };

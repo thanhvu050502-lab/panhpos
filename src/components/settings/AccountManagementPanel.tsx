@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth, Member } from '../../hooks/useAuth';
 import { toast } from '../ui/Toast';
 import { useConfirmAlert } from '../../hooks/useConfirmAlert';
+import { useLang } from '../../contexts/LangContext';
 
 interface AccountManagementPanelProps {
   onClose: () => void;
@@ -9,20 +10,24 @@ interface AccountManagementPanelProps {
 
 export const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({ onClose: _onClose }) => {
   const { confirm } = useConfirmAlert();
+  const { t } = useLang();
   const { session, getMembers, addMember, removeMemberByUsername } = useAuth();
   const members = getMembers().filter(m => !m.isMaster);
+  const isOwner = session?.role === 'owner';
 
   const [editingMaster, setEditingMaster] = useState(false);
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('staff');
   const [password, setPassword] = useState('');
+  const [isHidden, setIsHidden] = useState(false);
 
   const resetForm = () => {
     setUsername('');
     setName('');
     setRole('staff');
     setPassword('');
+    setIsHidden(false);
     setEditingMaster(false);
   };
 
@@ -37,7 +42,7 @@ export const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({ 
       return;
     }
     try {
-      await addMember(username, name, role, password);
+      await addMember(username, name, role, password, isHidden);
       toast(editingMaster ? 'Đã cập nhật tài khoản' : 'Đã lưu tài khoản', 'success');
       resetForm();
     } catch {
@@ -50,6 +55,7 @@ export const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({ 
     setName(m.displayName || m.name);
     setRole(m.role);
     setPassword('');
+    setIsHidden(!!m.is_hidden);
     setEditingMaster(!!m.isMaster);
   };
 
@@ -125,6 +131,20 @@ export const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({ 
               <option value="owner">Chủ tiệm (Owner/Admin)</option>
             </select>
           </div>
+          {isOwner && !editingMaster && (
+            <div className="fg">
+              <div className="srow" style={{ padding: 0 }}>
+                <div>
+                  <div className="slbl">{t('Ẩn khỏi danh sách chọn nhân viên')}</div>
+                  <div className="ssub">{t('Không hiển thị khi chọn nhân viên thực hiện tác vụ')}</div>
+                </div>
+                <label className="tgl">
+                  <input type="checkbox" checked={isHidden} onChange={e => setIsHidden(e.target.checked)} />
+                  <div className="tgl-sl" />
+                </label>
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
             <button type="submit" className="btn brand full">
               {username ? 'Lưu cập nhật' : 'Thêm tài khoản'}
@@ -150,8 +170,9 @@ export const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({ 
             </div>
             <div className="lrow-info">
               <div className="lrow-ttl">
-                {m.displayName || m.name} 
+                {m.displayName || m.name}
                 {m.isMaster && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--amber)', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>MASTER</span>}
+                {m.is_hidden && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--ink4)', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>{t('ẨN')}</span>}
               </div>
               <div className="lrow-sub">{m.username} • {m.role === 'owner' ? 'Chủ tiệm' : 'Nhân viên'}</div>
             </div>
