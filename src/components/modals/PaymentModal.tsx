@@ -175,15 +175,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, 
         );
       }
       const custId = orderState.customer && !orderState.customer.isWalkin ? orderState.customer.id : null;
+      const now = new Date().toISOString();
+      // created_at must be set explicitly: the create_order_full RPC uses
+      // jsonb_populate_recordset + INSERT...SELECT, which inserts NULL for
+      // missing keys and bypasses the column DEFAULT. Without this, every
+      // insert fails with 23502 NOT NULL violation on order_items.created_at.
       const items = (orderState.cart || []).map((item: any, i: number) => ({
         id: txn.itemIds[i] ?? uid(),
         order_id: txn.orderId, catalog_id: item.catalog_id || null,
         name: item.name, price: item.price, quantity: item.quantity * (orderState.qty || 1),
+        created_at: now,
       }));
       const payments = paymentRows.map((p, i) => ({
         id: txn.paymentIds[i],
         order_id: txn.orderId,
         ...p,
+        // Both received_at and created_at are NOT NULL on order_payments —
+        // the RPC bypasses defaults, so we must send both explicitly.
+        received_at: now,
+        created_at: now,
       }));
 
       const orderData: any = {
