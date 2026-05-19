@@ -182,7 +182,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({ onClose, apptId, open = 
       isDemo ? null : getSupabase()
     );
     const custId = selectedCust && !selectedCust.isWalkin ? selectedCust.id : null;
-    const items = cart.map(item => ({ id: uid(), order_id: orderId, catalog_id: item.catalog_id || null, name: item.name, price: item.price, quantity: item.quantity * qty }));
+    const now = new Date().toISOString();
+    // created_at must be set explicitly — see PaymentModal for the full
+    // explanation. RPC bypasses column defaults via jsonb_populate_recordset.
+    const items = cart.map(item => ({ id: uid(), order_id: orderId, catalog_id: item.catalog_id || null, name: item.name, price: item.price, quantity: item.quantity * qty, created_at: now }));
 
     const orderData: any = {
       id: orderId, code,

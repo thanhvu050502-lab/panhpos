@@ -64,8 +64,21 @@ export function formatTime(s?: string | null) {
   });
 }
 
-export function uid() { 
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); 
+// Returns a RFC 4122 v4 UUID. All entity primary keys in our Supabase schema
+// are `uuid` columns, so client-generated IDs must match that format or the
+// `create_order_full` RPC (and any direct insert) rejects them with 22P02.
+// Falls back to a Math.random-based v4 only if crypto.randomUUID is missing
+// (very old browsers / insecure contexts); the format is still valid UUID.
+export function uid() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  // RFC 4122 v4 fallback
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export function avColor(name?: string | null) { 
