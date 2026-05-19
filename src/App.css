@@ -362,14 +362,22 @@ textarea.fc{resize:none;min-height:70px;line-height:1.5}
   color: rgba(255,255,255,.95);
   text-shadow: 0 1px 8px rgba(160,100,200,.4);
 }
-/* Kill browser autofill yellow + white text on login inputs */
+/* Login card has a fixed light pastel background regardless of theme,
+   so its inputs must keep dark text even when body.dark-mode flips --ink. */
+.login-card input.fc {
+  color: #171717;
+  caret-color: #171717;
+}
+.login-card input.fc::placeholder { color: #A3A3A3; }
+/* Same treatment for Chrome's autofill, which would otherwise paint
+   the value in near-white on top of the translucent card. */
 .login-card input.fc:-webkit-autofill,
 .login-card input.fc:-webkit-autofill:hover,
 .login-card input.fc:-webkit-autofill:focus,
 .login-card input.fc:-webkit-autofill:active {
-  -webkit-text-fill-color: var(--ink);
+  -webkit-text-fill-color: #171717;
   -webkit-box-shadow: 0 0 0 1000px rgba(255,255,255,.7) inset;
-  caret-color: var(--ink);
+  caret-color: #171717;
   transition: background-color 9999s ease-in-out 0s;
 }
 /* Login card */
