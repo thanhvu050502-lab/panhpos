@@ -362,6 +362,16 @@ textarea.fc{resize:none;min-height:70px;line-height:1.5}
   color: rgba(255,255,255,.95);
   text-shadow: 0 1px 8px rgba(160,100,200,.4);
 }
+/* Kill browser autofill yellow + white text on login inputs */
+.login-card input.fc:-webkit-autofill,
+.login-card input.fc:-webkit-autofill:hover,
+.login-card input.fc:-webkit-autofill:focus,
+.login-card input.fc:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px rgba(255,255,255,.7) inset;
+  caret-color: var(--ink);
+  transition: background-color 9999s ease-in-out 0s;
+}
 /* Login card */
 .login-card {
   position: relative; z-index: 2;
