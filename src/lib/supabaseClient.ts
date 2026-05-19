@@ -52,6 +52,12 @@ export function getSupabase() {
   return supabase;
 }
 
+// DEV-only hook for smoke-test.mjs cleanup. Never enabled in production
+// builds — Vite tree-shakes the entire block on `npm run build`.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as any).__getSb = getSupabase;
+}
+
 export async function testSupabaseConnection(url: string, key: string) {
   const client = createSupabaseClient(url, key);
   const { error } = await client.from('settings').select('id').limit(1);
