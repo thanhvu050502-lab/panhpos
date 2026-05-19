@@ -370,15 +370,22 @@ textarea.fc{resize:none;min-height:70px;line-height:1.5}
   --bg:#FFFFFF; --bg2:#FAFAF9; --bg3:#F5F5F4;
   --bdr:#E7E5E4; --bdr2:#D6D3D1;
 }
-/* Chrome's autofill UA stylesheet uses -webkit-text-fill-color, which wins
-   over plain `color`. Pin it explicitly so saved credentials stay readable. */
+/* Chrome's password-manager UA stylesheet sets -webkit-text-fill-color on
+   recognized login fields in ALL states (not just :-webkit-autofill), and
+   that property wins over `color`. Pin it on the base rule so typed chars
+   stay readable too, plus the autofill override below for the filled bg. */
+.login-card input.fc {
+  color: #171717;
+  -webkit-text-fill-color: #171717;
+  caret-color: #171717;
+}
 .login-card input.fc:-webkit-autofill,
 .login-card input.fc:-webkit-autofill:hover,
 .login-card input.fc:-webkit-autofill:focus,
 .login-card input.fc:-webkit-autofill:active {
-  -webkit-text-fill-color: #171717;
-  -webkit-box-shadow: 0 0 0 1000px rgba(255,255,255,.7) inset;
-  caret-color: #171717;
+  -webkit-text-fill-color: #171717 !important;
+  -webkit-box-shadow: 0 0 0 1000px rgba(255,255,255,.7) inset !important;
+  caret-color: #171717 !important;
   transition: background-color 9999s ease-in-out 0s;
 }
 /* Login card */
